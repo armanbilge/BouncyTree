@@ -1,30 +1,34 @@
 package hmc;
 
-import beast.beagle.branchmodel.HomogeneousBranchModel;
-import beast.beagle.sitemodel.GammaSiteRateModel;
-import beast.beagle.treelikelihood.BeagleTreeLikelihood;
-import beast.beagle.treelikelihood.PartialsRescalingScheme;
 import beast.evolution.alignment.Alignment;
 import beast.evolution.alignment.Patterns;
 import beast.evolution.datatype.Nucleotides;
 import beast.evolution.tree.Tree.MissingTaxonException;
 import beast.evolution.util.Taxa;
 import beast.evolution.util.Taxon;
-import beast.evolution.util.Units.Type;
 import beast.evomodel.branchratemodel.DefaultBranchRateModel;
 import beast.evomodel.sitemodel.GammaSiteModel;
 import beast.evomodel.sitemodel.SiteModel;
-import beast.evomodel.speciation.BirthDeathModel;
-import beast.evomodel.speciation.BirthDeathModel.TreeType;
-import beast.evomodel.speciation.SpeciationLikelihood;
 import beast.evomodel.substmodel.FrequencyModel;
 import beast.evomodel.substmodel.HKY;
 import beast.evomodel.tree.TreeModel;
+import beast.evomodel.treelikelihood.TreeLikelihood;
+import beast.inference.hamilton.HamiltonUpdate;
+import beast.inference.hamilton.KineticEnergy.Fixed;
+import beast.inference.loggers.ArrayLogFormatter;
+import beast.inference.loggers.Logger;
+import beast.inference.loggers.MCLogger;
+import beast.inference.mcmc.MCMC;
 import beast.inference.model.CompoundLikelihood;
+import beast.inference.model.CompoundParameter;
 import beast.inference.model.Likelihood;
 import beast.inference.model.Parameter;
 import beast.inference.model.Parameter.Default;
+import beast.inference.operators.CoercionMode;
+import beast.inference.operators.MCMCOperator;
 import beast.inference.operators.OperatorFailedException;
+import beast.inference.operators.ScaleOperator;
+import beast.inference.operators.UniformOperator;
 import beast.math.MathUtils;
 import beast.xml.XMLObject;
 import beast.xml.XMLParseException;
@@ -77,18 +81,11 @@ public class Surface {
             }
         };
         final TreeModel tree = new TreeModel(new BirthDeathSimulator().parseXMLObject(xo));
-        final SiteModel site = new GammaSiteModel(new HKY(8.0, new FrequencyModel(Nucleotides.INSTANCE, new Default(new double[]{0.35, 0.30, 0.20, 0.15}))), new Default(0.1), null, 0, null);
+        final SiteModel site = new GammaSiteModel(new HKY(8.0, new FrequencyModel(Nucleotides.INSTANCE, new Default(new double[]{0.35, 0.30, 0.20, 0.15}))), new Default(1.0), null, 0, null);
         final Alignment alignment = new SequenceSimulator(tree, site, new DefaultBranchRateModel(), 512).simulate();
         final Likelihood like = new CompoundLikelihood(Arrays.<Likelihood>asList(
-                new BeagleTreeLikelihood(new Patterns(alignment),
-                                         tree,
-                                         new HomogeneousBranchModel(new beast.beagle.substmodel.HKY(8, new beast.beagle.substmodel.FrequencyModel(Nucleotides.INSTANCE, new Default(new double[]{0.25, 0.25, 0.25, 0.25})))),
-                                         new GammaSiteRateModel("", new Default(0.1), null, 0, null),
-                                         new DefaultBranchRateModel(),
-                                         null,
-                                         false,
-                                         PartialsRescalingScheme.NONE),
-                new SpeciationLikelihood(tree, new BirthDeathModel(new Parameter.Default(1.0), null, null, null, TreeType.LABELED, Type.SUBSTITUTIONS), null)
+                new TreeLikelihood(new Patterns(alignment), tree, site, new DefaultBranchRateModel(), null, true, false, false, true, false)
+//                new SpeciationLikelihood(tree, new BirthDeathModel(new Parameter.Default(1.0), null, null, null, TreeType.LABELED, Type.SUBSTITUTIONS), null)
         ));
         System.out.println(tree);
         final PrintWriter pw = new PrintWriter(new File("surface.dat"));
@@ -103,6 +100,32 @@ public class Surface {
             pw.println();
         }
         pw.close();
+
+        final MCMC mcmc = new MCMC("mcmc");
+
+        tree.setNodeHeight(tree.getInternalNode(1), 2);
+        tree.setNodeHeight(tree.getInternalNode(0), 1);
+
+        {
+            final ArrayLogFormatter formatter = new ArrayLogFormatter(true);
+            final MCLogger logger = new MCLogger(formatter, 1, false);
+            logger.add(like);
+            logger.add(tree.createNodeHeightsParameter(true, true, false));
+            mcmc.init(64, like, new MCMCOperator[]{new ScaleOperator(tree.getRootHeightParameter(), 0.5, CoercionMode.COERCION_OFF, 1.0), new UniformOperator(tree.createNodeHeightsParameter(false, true, false), 1)}, new Logger[]{logger});
+//            mcmc.run();
+        }
+
+        tree.setNodeHeight(tree.getInternalNode(1), 2);
+        tree.setNodeHeight(tree.getInternalNode(0), 1);
+
+        {
+            final ArrayLogFormatter formatter = new ArrayLogFormatter(true);
+            final MCLogger logger = new MCLogger(formatter, 1, false);
+            logger.add(like);
+            logger.add(tree.createNodeHeightsParameter(true, true, false));
+            mcmc.init(64, like, new MCMCOperator[]{new HamiltonUpdate(like, (CompoundParameter) tree.createNodeHeightsParameter(true, true, false), new Fixed(new double[][]{{1.0, 0}, {0, 1.0}}), 1.0/128, 4, 0.5, 1.0, CoercionMode.COERCION_OFF)}, new Logger[]{logger});
+            mcmc.run();
+        }
 
 //        final MyHamilton integrator = new MyHamilton(like, new Parameter[]{tree.createNodeHeightsParameter(true, true, false)}, null, Math.pow(2, -14), 1, 0.0, 1.0, CoercionMode.COERCION_OFF);
 //        integrator.getP().adoptParameterValues(new Parameter.Default(new double[] {1.0, 1.0, 1.0}));

@@ -18,7 +18,6 @@ import beast.evomodel.substmodel.HKY;
 import beast.evomodel.tree.TreeModel;
 import beast.inference.hamilton.HamiltonUpdate;
 import beast.inference.model.CompoundLikelihood;
-import beast.inference.model.CompoundParameter;
 import beast.inference.model.Likelihood;
 import beast.inference.model.Parameter;
 import beast.inference.model.Parameter.Default;
@@ -44,10 +43,6 @@ public class BouncyTree {
     public static class MyHamilton extends HamiltonUpdate {
         public MyHamilton(Likelihood U, Parameter[] parameters, double[] massAttribute, double epsilon, int L, double alpha, @OperatorWeightAttribute double weight, CoercionMode mode) {
             super(U, parameters, massAttribute, epsilon, L, alpha, weight, mode);
-        }
-
-        public MyHamilton(Likelihood U, CompoundParameter q, double[] massAttribute, double epsilon, int L, double alpha, double weight, CoercionMode mode) {
-            super(U, q, massAttribute, epsilon, L, alpha, weight, mode);
         }
 
         public Parameter getP() {
