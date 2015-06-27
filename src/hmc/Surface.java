@@ -93,8 +93,8 @@ public class Surface {
         {
             final PrintWriter pw = new PrintWriter(new File("surface.dat"));
             pw.println("x y z");
-            final int stepsize = 32;
-            for (double x = 8.0/stepsize; x <= 1.5; x += 1.0/stepsize) {
+            final double stepsize = 32;
+            for (double x = 4.0/stepsize; x <= 1.5; x += 1.0/stepsize) {
                 for (double y = 1.0/stepsize; y <= 1.125; y += 1.0/stepsize) {
                     tree.setNodeHeight(tree.getInternalNode(1), x + y);
                     tree.setNodeHeight(tree.getInternalNode(0), y);
